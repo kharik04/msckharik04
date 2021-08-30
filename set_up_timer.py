@@ -13,7 +13,7 @@ from scipy.sparse import csr_matrix, vstack, lil_matrix,coo_matrix
 import pickle
 
 
-file_names = ['sample_scenario.json','01_dummy.json', '02_a_little_less_dummy.json',  '03_FWA_0.125.json', '04_V1.02_FWA_without_obstruction.json', '05_V1.02_FWA_with_obstruction.json', '06_V1.20_FWA.json', '07_V1.22_FWA.json', '08_V1.30_FWA.json',  '09_ZUE-ZG-CH_0600-1200.json']
+file_names = ['sample_scenario.json','01_dummy.json', '02_a_little_less_dummy.json',  '03_FWA_0.125.json', '04_V1.02_FWA_without_obstruction.json', '05_V1.02_FWA_with_obstruction.json', '06_V1.20_FWA.json',  '09_ZUE-ZG-CH_0600-1200.json']
 
 for file_name in file_names:
     print(f'-----------------------------------{file_name}-------------------------------------------')
@@ -279,148 +279,29 @@ for file_name in file_names:
     t4 = time.time()
     print(f'Data structure construction time: {t4-t3}')
 
-
-
-    def str_to_sec(s):
-        s=s.split(':')
-        return int(s[0])*60*60+int(s[1])*60+int(s[2])
-    def sec_to_str(x):
-        return strftime("%H:%M:%S", gmtime(x))
-
-
-    Mmrtmst = [1]
-    MEarOut = [1]
-    MEarIn = [1]
-    for si in route_graphs:
-        for e in route_graphs[si].edges(data=True):
-            edge_data = e[2]['edge_data']
-            if ('exit_earliest' in edge_data):
-                EarOut = str_to_sec(edge_data['exit_earliest'])
-                MEarOut.append(EarOut)
-            if ('entry_earliest' in edge_data):
-                EarIn = str_to_sec(edge_data['entry_earliest'])
-                MEarIn.append(EarIn)
-            if ('min_stopping_time' in edge_data) or ('minimum_running_time' in edge_data):
-                mst = 0
-                mrt = 0
-                if 'min_stopping_time' in edge_data:
-                    mst = isodate.parse_duration(edge_data['min_stopping_time']).seconds
-                if 'minimum_running_time' in edge_data:
-                    mrt = isodate.parse_duration(edge_data['minimum_running_time']).seconds
-                Mmrtmst.append(mrt+mst)
+    if file_name not in [ '06_V1.20_FWA.json',  '09_ZUE-ZG-CH_0600-1200.json']:
 
 
 
-    ub_numCons_nor = recursive_len(si_list)*11
-    ub_numCons_coup =  4*sum([len(delta_index_by_edge[si1][e])*len(delta_index_by_edge[si2][e]) for (si1, si2, e) in betaindex])
+        def str_to_sec(s):
+            s=s.split(':')
+            return int(s[0])*60*60+int(s[1])*60+int(s[2])
+        def sec_to_str(x):
+            return strftime("%H:%M:%S", gmtime(x))
 
-    c = np.zeros(total_length)
-    testv = [None]*total_length
 
-    #A = lil_matrix((ub_numCons_nor, total_length))
-    row = []
-    col = []
-    data = []
-    b = np.zeros(ub_numCons_nor)
-    cnum = 0
-    cnums = []
-    currlen = 0
-    bool_idx = []
-    for si, si_id in zip(si_list, service_intentions):
-        tempsum = 0
-        j=0
-        coltemp = []
-        datatemp = []
-        i =0
-        s=0
-        for r, path in zip(si, paths[si_id]):
-            for enum, rs in enumerate(r):
-                edge_data = route_graphs[si_id].edges[rs[2]]['edge_data']
-                #slack
-                tin_idx = currlen + i + TL[si_id]['slack'] 
-                tout_idx = currlen + i + TL[si_id]['slack'] + TL[si_id]['t']
-                delta_idx = currlen + j + TL[si_id]['slack'] + 2*TL[si_id]['t']
-                ad_x = 0
-                for t in service_intentions:
-                    if t==si_id:
-                        break
-                    ad_x += TL[t]['x']
-                x_idx = currlen + xindex[si_id][rs[2]] + TL[si_id]['slack'] + 2*TL[si_id]['t'] + TL[si_id]['delta'] -ad_x
-                
-                
-                if 'entry_delay_weight' in edge_data and 'entry_latest' in edge_data:
-                    b[cnum] = float(edge_data['entry_delay_weight'])*str_to_sec(edge_data['entry_latest'])
-                    row += [cnum, cnum]
-                    col += [currlen + s, tin_idx]
-                    data += [-1, float(edge_data['entry_delay_weight'])]
-                    cnum +=1
-                    b[cnum] = 0
-                    row.append(cnum)
-                    col.append(currlen + s)
-                    data.append(-1)
-                    cnum +=1
-                    
-                    c[currlen + s] = 1
-
-                    testv[currlen + s] = f'slack_{s}_{si_id}'
-                    s+=1
-                    
-                if 'exit_delay_weight' in edge_data and 'exit_latest' in edge_data:
-                    b[cnum] = float(edge_data['exit_delay_weight'])*str_to_sec(edge_data['exit_latest'])
-                    row += [cnum, cnum]
-                    col += [currlen + s, tout_idx]
-                    data += [-1, float(edge_data['exit_delay_weight'])]
-                    cnum+=1
-                    
-                    b[cnum] = 0
-                    row.append(cnum)
-                    col.append(currlen + s)
-                    data.append(-1)
-                    cnum += 1
-                    
-                    c[currlen + s] = 1
-                    testv[currlen + s] = f'slack_{s}_{si_id}'
-                    s+=1
-
-                
-                b[cnum] = 0
-                row.append(cnum)
-                col.append(tin_idx)
-                data.append(-1)
-                cnum+=1
-                testv[tin_idx] = f'tin_{i}_{si_id}'
-                
-                b[cnum] = 0
-                row.append(cnum)
-                col.append(tout_idx)
-                data.append(-1)
-                cnum += 1
-                testv[tout_idx] = f'tout_{i}_{si_id}'
-                
-                #(1)
-                row += [cnum, cnum]
-                col += [tin_idx, tout_idx]
-                data += [1,-1]
-                b[cnum] = 0
-                cnum += 1
-                
-                # (2)
-                if enum!=len(r)-1:
-                    b[cnum] = 0
-                    row+=[cnum, cnum]
-                    col+=[tin_idx+1, tout_idx]
-                    data += [1,-1]
-                    cnum += 1
-                    
-                    row+=[cnum, cnum]
-                    col+=[tin_idx+1, tout_idx]
-                    data += [-1,1]
-                    b[cnum] = 0
-                    cnum+=1
-
-                #(3)
-                #M=10000000
-                M=max(Mmrtmst)
+        Mmrtmst = [1]
+        MEarOut = [1]
+        MEarIn = [1]
+        for si in route_graphs:
+            for e in route_graphs[si].edges(data=True):
+                edge_data = e[2]['edge_data']
+                if ('exit_earliest' in edge_data):
+                    EarOut = str_to_sec(edge_data['exit_earliest'])
+                    MEarOut.append(EarOut)
+                if ('entry_earliest' in edge_data):
+                    EarIn = str_to_sec(edge_data['entry_earliest'])
+                    MEarIn.append(EarIn)
                 if ('min_stopping_time' in edge_data) or ('minimum_running_time' in edge_data):
                     mst = 0
                     mrt = 0
@@ -428,212 +309,333 @@ for file_name in file_names:
                         mst = isodate.parse_duration(edge_data['min_stopping_time']).seconds
                     if 'minimum_running_time' in edge_data:
                         mrt = isodate.parse_duration(edge_data['minimum_running_time']).seconds
+                    Mmrtmst.append(mrt+mst)
 
-                    #b[cnum] = M-mrt-mst
-                    #row += [cnum, cnum, cnum]
-                    #col+=[tin_idx, tout_idx, delta_idx]
-                    #data+=[1,-1,M]
-                    #cnum += 1
 
-                # (4)
-                M=max(MEarIn)
-                if ('entry_earliest' in edge_data):
-                    EarIn = str_to_sec(edge_data['entry_earliest'])
+
+        ub_numCons_nor = recursive_len(si_list)*11
+        ub_numCons_coup =  4*sum([len(delta_index_by_edge[si1][e])*len(delta_index_by_edge[si2][e]) for (si1, si2, e) in betaindex])
+
+        c = np.zeros(total_length)
+        testv = [None]*total_length
+
+        #A = lil_matrix((ub_numCons_nor, total_length))
+        row = []
+        col = []
+        data = []
+        b = np.zeros(ub_numCons_nor)
+        cnum = 0
+        cnums = []
+        currlen = 0
+        bool_idx = []
+        for si, si_id in zip(si_list, service_intentions):
+            tempsum = 0
+            j=0
+            coltemp = []
+            datatemp = []
+            i =0
+            s=0
+            for r, path in zip(si, paths[si_id]):
+                for enum, rs in enumerate(r):
+                    edge_data = route_graphs[si_id].edges[rs[2]]['edge_data']
+                    #slack
+                    tin_idx = currlen + i + TL[si_id]['slack'] 
+                    tout_idx = currlen + i + TL[si_id]['slack'] + TL[si_id]['t']
+                    delta_idx = currlen + j + TL[si_id]['slack'] + 2*TL[si_id]['t']
+                    ad_x = 0
+                    for t in service_intentions:
+                        if t==si_id:
+                            break
+                        ad_x += TL[t]['x']
+                    x_idx = currlen + xindex[si_id][rs[2]] + TL[si_id]['slack'] + 2*TL[si_id]['t'] + TL[si_id]['delta'] -ad_x
                     
-                    b[cnum] = M-EarIn
+                    
+                    if 'entry_delay_weight' in edge_data and 'entry_latest' in edge_data:
+                        b[cnum] = float(edge_data['entry_delay_weight'])*str_to_sec(edge_data['entry_latest'])
+                        row += [cnum, cnum]
+                        col += [currlen + s, tin_idx]
+                        data += [-1, float(edge_data['entry_delay_weight'])]
+                        cnum +=1
+                        b[cnum] = 0
+                        row.append(cnum)
+                        col.append(currlen + s)
+                        data.append(-1)
+                        cnum +=1
+                        
+                        c[currlen + s] = 1
+
+                        testv[currlen + s] = f'slack_{s}_{si_id}'
+                        s+=1
+                        
+                    if 'exit_delay_weight' in edge_data and 'exit_latest' in edge_data:
+                        b[cnum] = float(edge_data['exit_delay_weight'])*str_to_sec(edge_data['exit_latest'])
+                        row += [cnum, cnum]
+                        col += [currlen + s, tout_idx]
+                        data += [-1, float(edge_data['exit_delay_weight'])]
+                        cnum+=1
+                        
+                        b[cnum] = 0
+                        row.append(cnum)
+                        col.append(currlen + s)
+                        data.append(-1)
+                        cnum += 1
+                        
+                        c[currlen + s] = 1
+                        testv[currlen + s] = f'slack_{s}_{si_id}'
+                        s+=1
+
+                    
+                    b[cnum] = 0
+                    row.append(cnum)
+                    col.append(tin_idx)
+                    data.append(-1)
+                    cnum+=1
+                    testv[tin_idx] = f'tin_{i}_{si_id}'
+                    
+                    b[cnum] = 0
+                    row.append(cnum)
+                    col.append(tout_idx)
+                    data.append(-1)
+                    cnum += 1
+                    testv[tout_idx] = f'tout_{i}_{si_id}'
+                    
+                    #(1)
                     row += [cnum, cnum]
-                    col += [tin_idx, delta_idx]
-                    data += [-1, M]
+                    col += [tin_idx, tout_idx]
+                    data += [1,-1]
+                    b[cnum] = 0
                     cnum += 1
-
-                #(5)
-                M=max(MEarOut)    
-                if ('exit_earliest' in edge_data):
-                    EarOut = str_to_sec(edge_data['exit_earliest'])
                     
-                    row +=[cnum, cnum]
-                    col += [tout_idx, delta_idx]
-                    data += [-1, M]
-                    b[cnum] = M-EarOut
+                    # (2)
+                    if enum!=len(r)-1:
+                        b[cnum] = 0
+                        row+=[cnum, cnum]
+                        col+=[tin_idx+1, tout_idx]
+                        data += [1,-1]
+                        cnum += 1
+                        
+                        row+=[cnum, cnum]
+                        col+=[tin_idx+1, tout_idx]
+                        data += [-1,1]
+                        b[cnum] = 0
+                        cnum+=1
+
+                    #(3)
+                    #M=10000000
+                    M=max(Mmrtmst)
+                    if ('min_stopping_time' in edge_data) or ('minimum_running_time' in edge_data):
+                        mst = 0
+                        mrt = 0
+                        if 'min_stopping_time' in edge_data:
+                            mst = isodate.parse_duration(edge_data['min_stopping_time']).seconds
+                        if 'minimum_running_time' in edge_data:
+                            mrt = isodate.parse_duration(edge_data['minimum_running_time']).seconds
+
+                        #b[cnum] = M-mrt-mst
+                        #row += [cnum, cnum, cnum]
+                        #col+=[tin_idx, tout_idx, delta_idx]
+                        #data+=[1,-1,M]
+                        #cnum += 1
+
+                    # (4)
+                    M=max(MEarIn)
+                    if ('entry_earliest' in edge_data):
+                        EarIn = str_to_sec(edge_data['entry_earliest'])
+                        
+                        b[cnum] = M-EarIn
+                        row += [cnum, cnum]
+                        col += [tin_idx, delta_idx]
+                        data += [-1, M]
+                        cnum += 1
+
+                    #(5)
+                    M=max(MEarOut)    
+                    if ('exit_earliest' in edge_data):
+                        EarOut = str_to_sec(edge_data['exit_earliest'])
+                        
+                        row +=[cnum, cnum]
+                        col += [tout_idx, delta_idx]
+                        data += [-1, M]
+                        b[cnum] = M-EarOut
+                        cnum += 1
+                    # (7)
+                    b[cnum] = 0
+                    row += [cnum, cnum]
+                    col += [delta_idx, x_idx]
+                    data+= [1,-1]
                     cnum += 1
-                # (7)
-                b[cnum] = 0
-                row += [cnum, cnum]
-                col += [delta_idx, x_idx]
-                data+= [1,-1]
-                cnum += 1
-                
-                bool_idx.append(delta_idx)
-                bool_idx.append(x_idx)
-                testv[x_idx] = f'x_{xindex[si_id][rs[2]] - ad_x}_{si_id}'
-                testv[delta_idx] = f'delta_{j}_{si_id}'
-                
-                i+=1
-            # (6)
-            coltemp.append(delta_idx)
-            datatemp.append(1)
-            j+=1
-        
-        tempb = np.array([1])
-        b = np.hstack((b[:cnum],tempb,b[cnum:]))
-        row += [cnum]*len(coltemp)
-        col+= coltemp
-        data+=datatemp
-        cnum += 1
-        
-        row += [cnum]*len(coltemp)
-        datatemp = [-1*x for x in datatemp]
-        col+=coltemp
-        data+=datatemp
-        tempb = -1*tempb.copy()
-        b = np.hstack((b[:cnum],tempb,b[cnum:]))
-        cnum += 1
-        if len(cnums)==0:
-            cnums.append(cnum)
-        else:
-            cnums.append(cnum - cnums[-1])
-        currlen += TL[si_id]['slack'] + 2*TL[si_id]['t'] + TL[si_id]['delta'] + TL[si_id]['x']
-
-    print(f'number of independent constraints: {cnum}')
-    b = b[:cnum]
-    A = coo_matrix((data, (row, col)), shape=(cnum, total_length))
-
-
-    #objective
-    currlen = 0    
-    for si, si_id in zip(si_list, service_intentions):
-        for edge in route_graphs[si_id].edges(data=True):
-            ad_x = 0
-            for t in service_intentions:
-                if t==si_id:
-                    break
-                ad_x += TL[t]['x']
-            e = (edge[0],edge[1])
-            x_idx = currlen + xindex[si_id][e] + TL[si_id]['slack'] + 2*TL[si_id]['t'] + TL[si_id]['delta'] - ad_x
-            p = 0
-            if 'penalty' in edge[2]['edge_data']:
-                p = edge[2]['edge_data']['penalty']
-                if p == None:
-                    p = 0
-                else:
-                    p = float(p)
-                c[x_idx]= p
-            i+=1   
-
-
-    #coupling
-    cnum = 0
-    #A_coup = csr_matrix((ub_numCons_coup, total_length))
-    b_coup = np.zeros(ub_numCons_coup)
-    row, col, data = [], [], []
-
-    i = 0
-    eps = 1
-    M = 100000
-    R=30
-    LenSI = total_length - beta_len
-    for (si1, si2, e) in betaindex:
-        deltaidx1 = delta_index_by_edge[si1][e]
-        deltaidx2 = delta_index_by_edge[si2][e]
-        
-        
-        prevsi = []
-        for siprevel in [si for si in service_intentions]:
-            if siprevel==si1:
-                break
-            prevsi.append(siprevel)
-        adjuster1 = sum([TL[siprevel]['t'] for siprevel in prevsi])
-        
-        prevsi = []
-        for siprevel in [si for si in service_intentions]:
-            if siprevel==si2:
-                break
-            prevsi.append(siprevel)
-        adjuster2 = sum([TL[siprevel]['t'] for siprevel in prevsi])
-        
-        prevsi = []
-        for siprevel in [si for si in service_intentions]:
-            if siprevel==si1:
-                break
-            prevsi.append(siprevel)
-        adjuster1d = sum([TL[siprevel]['delta'] for siprevel in prevsi])
-        
-        prevsi = []
-        for siprevel in [si for si in service_intentions]:
-            if siprevel==si2:
-                break
-            prevsi.append(siprevel)
-        adjuster2d = sum([TL[siprevel]['delta'] for siprevel in prevsi])
-        
-        sumtil1 = 0
-        prevsi = []
-        for siprevel in [si for si in service_intentions]:
-            if siprevel==si1:
-                break
-            prevsi.append(siprevel)
-        sumtil1 = sum([TL[siprevel]['slack'] + 2*TL[siprevel]['t'] + TL[siprevel]['delta'] + TL[siprevel]['x'] for siprevel in prevsi])
-
-        
-        sumtil2 = 0
-        prevsi = []
-        for siprevel in [si for si in service_intentions]:
-            if siprevel==si2:
-                break
-            prevsi.append(siprevel)
-        sumtil2 = sum([TL[siprevel]['slack'] + 2*TL[siprevel]['t'] + TL[siprevel]['delta'] + TL[siprevel]['x'] for siprevel in prevsi])
+                    
+                    bool_idx.append(delta_idx)
+                    bool_idx.append(x_idx)
+                    testv[x_idx] = f'x_{xindex[si_id][rs[2]] - ad_x}_{si_id}'
+                    testv[delta_idx] = f'delta_{j}_{si_id}'
+                    
+                    i+=1
+                # (6)
+                coltemp.append(delta_idx)
+                datatemp.append(1)
+                j+=1
             
-        
-        for idx1 in deltaidx1:
-            for idx2 in deltaidx2:
-                tin1_idx = edges_by_path[idx1][e] - adjuster1 + sumtil1 + TL[si1]['slack']
-                tin2_idx = edges_by_path[idx2][e] - adjuster2 + sumtil2 + TL[si2]['slack']
-                tout1_idx = edges_by_path[idx1][e] - adjuster1 + sumtil1 + TL[si1]['slack'] + TL[si1]['t']
-                tout2_idx = edges_by_path[idx2][e] - adjuster2 + sumtil2 + TL[si2]['slack'] + TL[si2]['t']
-                delta1_idx = idx1+TL[si1]['slack']+2*TL[si1]['t'] - adjuster1d + sumtil1
-                delta2_idx = idx2+TL[si2]['slack']+2*TL[si2]['t'] - adjuster2d + sumtil2
-                
-                #print(f'tin1 {tin1_idx}, tin2 {tin2_idx}, delta1 {delta1_idx}, delta2 {delta2_idx}, beta {LenSI+i}')
-                row+=[cnum,cnum, cnum, cnum, cnum]
-                col+=[tin1_idx, tin2_idx, delta1_idx, delta2_idx,LenSI+i]
-                data += [1,-1,M,M,M]
-                b_coup[cnum]=3*M
-                cnum += 1
-                
-                
-                row+=[cnum,cnum, cnum, cnum, cnum]
-                col+=[tin1_idx, tin2_idx, delta1_idx, delta2_idx,LenSI+i]
-                data += [-1,1,M,M,-M]
-                b_coup[cnum]=2*M-eps
-                cnum += 1
-                
-                
-                row+=[cnum,cnum, cnum, cnum, cnum]
-                col+=[tin2_idx, tout1_idx, delta1_idx, delta2_idx,LenSI+i]
-                data += [-1,1,M,M,M]
-                b_coup[cnum]=3*M-R
-                cnum += 1
-                
-                
-                row+=[cnum,cnum, cnum, cnum, cnum]
-                col+=[tin1_idx, tout2_idx, delta1_idx, delta2_idx,LenSI+i]
-                data += [-1,1,M,M,-M]
-                b_coup[cnum]=2*M-R
-                cnum += 1
-        testv[LenSI+i] = f'beta_{i}'       
-        bool_idx.append(LenSI+i)
-        i+=1
+            tempb = np.array([1])
+            b = np.hstack((b[:cnum],tempb,b[cnum:]))
+            row += [cnum]*len(coltemp)
+            col+= coltemp
+            data+=datatemp
+            cnum += 1
+            
+            row += [cnum]*len(coltemp)
+            datatemp = [-1*x for x in datatemp]
+            col+=coltemp
+            data+=datatemp
+            tempb = -1*tempb.copy()
+            b = np.hstack((b[:cnum],tempb,b[cnum:]))
+            cnum += 1
+            if len(cnums)==0:
+                cnums.append(cnum)
+            else:
+                cnums.append(cnum - cnums[-1])
+            currlen += TL[si_id]['slack'] + 2*TL[si_id]['t'] + TL[si_id]['delta'] + TL[si_id]['x']
 
-    bool_idx =list(set(bool_idx))
-    print(f'number of coupling constraints: {cnum}')
+        print(f'number of independent constraints: {cnum}')
+        b = b[:cnum]
+        A = coo_matrix((data, (row, col)), shape=(cnum, total_length))
 
 
-    A_coup = coo_matrix((data, (row, col)), shape=(cnum, total_length))
-    b_coup = b_coup[:cnum].flatten()
+        #objective
+        currlen = 0    
+        for si, si_id in zip(si_list, service_intentions):
+            for edge in route_graphs[si_id].edges(data=True):
+                ad_x = 0
+                for t in service_intentions:
+                    if t==si_id:
+                        break
+                    ad_x += TL[t]['x']
+                e = (edge[0],edge[1])
+                x_idx = currlen + xindex[si_id][e] + TL[si_id]['slack'] + 2*TL[si_id]['t'] + TL[si_id]['delta'] - ad_x
+                p = 0
+                if 'penalty' in edge[2]['edge_data']:
+                    p = edge[2]['edge_data']['penalty']
+                    if p == None:
+                        p = 0
+                    else:
+                        p = float(p)
+                    c[x_idx]= p
+                i+=1   
 
 
-    At = vstack((A,A_coup))
-    bt = np.hstack((b,b_coup))
+        #coupling
+        cnum = 0
+        #A_coup = csr_matrix((ub_numCons_coup, total_length))
+        b_coup = np.zeros(ub_numCons_coup)
+        row, col, data = [], [], []
 
-    t5 = time.time()
-    print(f'Matrix construction time: {t5-t4}')
-    print(f'Programme total runtime:{t5-t0} ')
+        i = 0
+        eps = 1
+        M = 100000
+        R=30
+        LenSI = total_length - beta_len
+        for (si1, si2, e) in betaindex:
+            deltaidx1 = delta_index_by_edge[si1][e]
+            deltaidx2 = delta_index_by_edge[si2][e]
+            
+            
+            prevsi = []
+            for siprevel in [si for si in service_intentions]:
+                if siprevel==si1:
+                    break
+                prevsi.append(siprevel)
+            adjuster1 = sum([TL[siprevel]['t'] for siprevel in prevsi])
+            
+            prevsi = []
+            for siprevel in [si for si in service_intentions]:
+                if siprevel==si2:
+                    break
+                prevsi.append(siprevel)
+            adjuster2 = sum([TL[siprevel]['t'] for siprevel in prevsi])
+            
+            prevsi = []
+            for siprevel in [si for si in service_intentions]:
+                if siprevel==si1:
+                    break
+                prevsi.append(siprevel)
+            adjuster1d = sum([TL[siprevel]['delta'] for siprevel in prevsi])
+            
+            prevsi = []
+            for siprevel in [si for si in service_intentions]:
+                if siprevel==si2:
+                    break
+                prevsi.append(siprevel)
+            adjuster2d = sum([TL[siprevel]['delta'] for siprevel in prevsi])
+            
+            sumtil1 = 0
+            prevsi = []
+            for siprevel in [si for si in service_intentions]:
+                if siprevel==si1:
+                    break
+                prevsi.append(siprevel)
+            sumtil1 = sum([TL[siprevel]['slack'] + 2*TL[siprevel]['t'] + TL[siprevel]['delta'] + TL[siprevel]['x'] for siprevel in prevsi])
+
+            
+            sumtil2 = 0
+            prevsi = []
+            for siprevel in [si for si in service_intentions]:
+                if siprevel==si2:
+                    break
+                prevsi.append(siprevel)
+            sumtil2 = sum([TL[siprevel]['slack'] + 2*TL[siprevel]['t'] + TL[siprevel]['delta'] + TL[siprevel]['x'] for siprevel in prevsi])
+                
+            
+            for idx1 in deltaidx1:
+                for idx2 in deltaidx2:
+                    tin1_idx = edges_by_path[idx1][e] - adjuster1 + sumtil1 + TL[si1]['slack']
+                    tin2_idx = edges_by_path[idx2][e] - adjuster2 + sumtil2 + TL[si2]['slack']
+                    tout1_idx = edges_by_path[idx1][e] - adjuster1 + sumtil1 + TL[si1]['slack'] + TL[si1]['t']
+                    tout2_idx = edges_by_path[idx2][e] - adjuster2 + sumtil2 + TL[si2]['slack'] + TL[si2]['t']
+                    delta1_idx = idx1+TL[si1]['slack']+2*TL[si1]['t'] - adjuster1d + sumtil1
+                    delta2_idx = idx2+TL[si2]['slack']+2*TL[si2]['t'] - adjuster2d + sumtil2
+                    
+                    #print(f'tin1 {tin1_idx}, tin2 {tin2_idx}, delta1 {delta1_idx}, delta2 {delta2_idx}, beta {LenSI+i}')
+                    row+=[cnum,cnum, cnum, cnum, cnum]
+                    col+=[tin1_idx, tin2_idx, delta1_idx, delta2_idx,LenSI+i]
+                    data += [1,-1,M,M,M]
+                    b_coup[cnum]=3*M
+                    cnum += 1
+                    
+                    
+                    row+=[cnum,cnum, cnum, cnum, cnum]
+                    col+=[tin1_idx, tin2_idx, delta1_idx, delta2_idx,LenSI+i]
+                    data += [-1,1,M,M,-M]
+                    b_coup[cnum]=2*M-eps
+                    cnum += 1
+                    
+                    
+                    row+=[cnum,cnum, cnum, cnum, cnum]
+                    col+=[tin2_idx, tout1_idx, delta1_idx, delta2_idx,LenSI+i]
+                    data += [-1,1,M,M,M]
+                    b_coup[cnum]=3*M-R
+                    cnum += 1
+                    
+                    
+                    row+=[cnum,cnum, cnum, cnum, cnum]
+                    col+=[tin1_idx, tout2_idx, delta1_idx, delta2_idx,LenSI+i]
+                    data += [-1,1,M,M,-M]
+                    b_coup[cnum]=2*M-R
+                    cnum += 1
+            testv[LenSI+i] = f'beta_{i}'       
+            bool_idx.append(LenSI+i)
+            i+=1
+
+        bool_idx =list(set(bool_idx))
+        print(f'number of coupling constraints: {cnum}')
+
+
+        A_coup = coo_matrix((data, (row, col)), shape=(cnum, total_length))
+        b_coup = b_coup[:cnum].flatten()
+
+
+        At = vstack((A,A_coup))
+        bt = np.hstack((b,b_coup))
+
+        t5 = time.time()
+        print(f'Matrix construction time: {t5-t4}')
+        print(f'Programme total runtime:{t5-t0} ')
