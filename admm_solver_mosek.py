@@ -110,7 +110,7 @@ class Sub_problem:
         self.dual2[self.q_id] = np.zeros(self.gamma[self.q_id].shape[0])
 
 
-def admm_solve(problem_name, algo):
+def admm_solve(problem_name, algo, displayoption):
     A, b, A_coup, b_coup, c, indexer, indexer_coup, bool_idx, beta_idx,  service_intentions, TL, paths, get_index_by_delta, Lats = load_problem(problem_name)
     A = csr_matrix(A)
     A_coup = csr_matrix(A_coup)
@@ -133,6 +133,7 @@ def admm_solve(problem_name, algo):
 
 
     if algo == 'naive':
+        print('Invoking naive MOSEK solver')
 
         with Model() as M:
             At = my_vstack((A,A_coup))
@@ -152,6 +153,7 @@ def admm_solve(problem_name, algo):
             M.objective('obj', ObjectiveSense.Minimize, Expr.dot(c, x))
 
             t0 = time.time()
+            M.setLogHandler(sys.stdout)
             M.solve()
             print(time.time() - t0)
 
@@ -164,10 +166,13 @@ def admm_solve(problem_name, algo):
             constr = M.getSolverIntInfo("mioConstructSolution")
             constrVal = M.getSolverDoubleInfo("mioConstructSolutionObj")
 
+            if displayoption:
+                display_solution(sol,service_intentions, TL, paths, get_index_by_delta, Lats)
+
     elif algo== 'ADMM':
 
 
-
+        print('Invoking ADMM MOSEK solver')
         service_intentions = [si for si in service_intentions]
         bool_vars_idx = [(x,) for x in bool_idx]
         coupling = [key for key in indexer_coup]
@@ -263,6 +268,7 @@ def admm_solve(problem_name, algo):
                     # Solve the problem
                     #M.setLogHandler(sys.stdout)
                     ttemp = time.time()
+                    M.setLogHandler(sys.stdout)
                     M.solve()
                     dtt = time.time() - ttemp
                     dt+=dtt
@@ -316,7 +322,29 @@ def admm_solve(problem_name, algo):
         print('time taken for ADMM: ', tf-t0)
         print('time taken for solver:', dtt)
         print('time taken for summation:', tsum)
+        if displayoption:
+            x = lam_p
+            for si in service_intentions:
+                lb, ub = indexer[si]['width_loc']
+                x[lb:ub] = S_sol[si][lb:ub]
+            display_solution(x,service_intentions, TL, paths, get_index_by_delta, Lats)
 
 
 if __name__ == '__main__':
-    admm_solve(sys.argv[1], sys.argv[2])
+    algorithm = None
+    display = False
+    file_name = None
+    for i in range(1, len(sys.argv)):
+        s=sys.argv[i].split('=')
+        if s[0] == 'file':
+            file_name = s[1]
+        if s[0] == 'algorithm' and (s[1]=='ADMM' or s[1]=='naive'):
+            algorithm = s[1]
+        if s[0] == 'display':
+            if s[1]=='True':
+                display = True
+    
+    if algorithm and file_name:
+        admm_solve(file_name, algorithm, display)
+    else:
+        print('Please, check input format and try again')

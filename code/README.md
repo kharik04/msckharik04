@@ -18,7 +18,8 @@ NB: The code is developed as proof of concept, and although time and space compl
 -networkx  
 -mosek  
 -seaborn  
--matplotlib  
+-matplotlib
+-valid mosek license. During this thesis, a trial license was used, but MOSEK offers academic liscenses.
 
 
 ## Usage

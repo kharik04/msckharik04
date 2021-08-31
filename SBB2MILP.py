@@ -695,6 +695,7 @@ def display_solution(x,service_intentions, TL, paths, get_index_by_delta, Lats, 
     plt.xlabel('Section sequence')
     plt.ylabel('Time (s)')
     plt.legend()
+    plt.show()
 
 def drawmatrix(A, S = 1):
     sns.set_style("white")

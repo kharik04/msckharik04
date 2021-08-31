@@ -626,6 +626,7 @@ for file_name in file_names:
             i+=1
 
         bool_idx =list(set(bool_idx))
+        print('integer variables' ,len(bool_idx))
         print(f'number of coupling constraints: {cnum}')
 
 
